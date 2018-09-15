@@ -16,4 +16,4 @@ if __name__ == '__main__':
 	loop.run_until_complete(print_sum(1, 2))
 	loop.close()
 
-	print('hello, git')
+	print('hello, git!')
