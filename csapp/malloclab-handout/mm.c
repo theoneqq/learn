@@ -62,27 +62,6 @@ team_t team = {
 
 static char *heap_base; 
 
-/* 
- * mm_init - initialize the malloc package.
- */
-int mm_init(void)
-{
-    if ((heap_base = mem_sbrk(4 * WORD_SIZE)) == (void *)(-1)) {
-        return -1;
-    }
-    SET(heap_base, 0);
-    SET(heap_base + WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
-    SET(heap_base + 2 * WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
-    SET(heap_base + 3 * WORD_SIZE, PACK(0, 1));
-
-    heap_base += 2 * WORD_SIZE;
-
-    if (extend_heap(CHUNK_SIZE / WORD_SIZE) == NULL) {
-        return -1;
-    }    
-    return 0;
-}
-
 static void* coalesce(void *bp) {
     int prev_alloc_state = GET_ALLOC_STATE(FOOT(PREV_BLOCK(bp)));
     int next_alloc_state = GET_ALLOC_STATE(HEAD(NEXT_BLOCK(bp)));
@@ -109,6 +88,7 @@ static void* coalesce(void *bp) {
     return bp;
 }
 
+
 static void* extend_heap(int words) {
     int extend_size = ALIGN(words * WORD_SIZE);
     char *bp;
@@ -118,9 +98,31 @@ static void* extend_heap(int words) {
     SET(HEAD(bp), PACK(extend_size, 0));
     SET(FOOT(bp), PACK(extend_size, 0));
 
-    set(HEAD(NEXT_BLOCK(bp)), PACK(0, 1));
+    SET(HEAD(NEXT_BLOCK(bp)), PACK(0, 1));
 
     return coalesce(bp);
+}
+
+
+/* 
+ * mm_init - initialize the malloc package.
+ */
+int mm_init(void)
+{
+    if ((heap_base = mem_sbrk(4 * WORD_SIZE)) == (void *)(-1)) {
+        return -1;
+    }
+    SET(heap_base, 0);
+    SET(heap_base + WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
+    SET(heap_base + 2 * WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
+    SET(heap_base + 3 * WORD_SIZE, PACK(0, 1));
+
+    heap_base += 2 * WORD_SIZE;
+
+    if (extend_heap(CHUNK_SIZE / WORD_SIZE) == NULL) {
+        return -1;
+    }    
+    return 0;
 }
 
 /* 
@@ -182,7 +184,7 @@ void mm_free(void *ptr)
    SET(HEAD(ptr), PACK(size, 0));
    SET(FOOT(ptr), PACK(size, 0));
 
-   return coalesce(ptr);
+   coalesce(ptr);
 }
 
 /*
