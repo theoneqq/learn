@@ -36,36 +36,140 @@ team_t team = {
 };
 
 /* single word (4) or double word (8) alignment */
-#define ALIGNMENT 8
+#define WORD_SIZE 4
+#define ALIGNMENT 4
+#define DWORD_SIZE_SIZE (WORD_SIZE * 2)
+#define CHUNK_SIZE (1 << 12)
 
-/* rounds up to the nearest multiple of ALIGNMENT */
-#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
+#define PACK(size, alloc_state) ((size) | (alloc_state))
+#define GET(p) (*(unsigned char *)(p))
+#define SET(p, val) (*(unsigned char *)(p) = (val))
+
+#define GET_SIZE(p) (GET(p) & ~(ALIGNMENT - 1))
+#define GET_ALLOC_STATE(p) (GET(p) & 1)
+
+#define HEAD(bp) ((char *)(bp) - WORD_SIZE)
+#define FOOT(bp) ((char *)(bp) + GET_SIZE(HEAD(bp)) - DWORD_SIZE_SIZE)
+
+#define NEXT_BLOCK(bp) ((char *)(bp) + GET_SIZE(HEAD(bp)))
+#define PREV_BLOCK(bp) ((char *)(bp) - GET_SIZE((char *) (bp) - DWORD_SIZE_SIZE))
+
+/* rounds up to the nearest multiple of WORD_SIZE */
+#define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))  // math.ceil(size / WORD_SIZE) * WORD_SIZE
 
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+
+static char *heap_base; 
 
 /* 
  * mm_init - initialize the malloc package.
  */
 int mm_init(void)
 {
+    if ((heap_base = mem_sbrk(4 * WORD_SIZE)) == (void *)(-1)) {
+        return -1;
+    }
+    SET(heap_base, 0);
+    SET(heap_base + WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
+    SET(heap_base + 2 * WORD_SIZE, PACK(DWORD_SIZE_SIZE, 1));
+    SET(heap_base + 3 * WORD_SIZE, PACK(0, 1));
+
+    heap_base += 2 * WORD_SIZE;
+
+    if (extend_heap(CHUNK_SIZE / WORD_SIZE) == NULL) {
+        return -1;
+    }    
     return 0;
+}
+
+static void* coalesce(void *bp) {
+    int prev_alloc_state = GET_ALLOC_STATE(FOOT(PREV_BLOCK(bp)));
+    int next_alloc_state = GET_ALLOC_STATE(HEAD(NEXT_BLOCK(bp)));
+    int size = GET_SIZE(HEAD(bp));
+
+    if (prev_alloc_state && next_alloc_state) {
+        return bp;
+    } else if (prev_alloc_state && !next_alloc_state) {
+        size += GET_SIZE(HEAD(NEXT_BLOCK(bp)));
+        SET(HEAD(bp), PACK(size, 0));
+        SET(FOOT(bp), PACK(size, 0));
+    } else if (!prev_alloc_state && next_alloc_state) {
+        size += GET_SIZE(HEAD(PREV_BLOCK(bp)));
+        SET(FOOT(bp), PACK(size, 0));
+        SET(HEAD(PREV_BLOCK(bp)), PACK(size, 0));
+        bp = PREV_BLOCK(bp);
+    } else {
+        size += GET_SIZE(HEAD(NEXT_BLOCK(bp))) + GET_SIZE(FOOT(PREV_BLOCK(bp)));
+        SET(HEAD(PREV_BLOCK(bp)), PACK(size, 0));
+        SET(FOOT(NEXT_BLOCK(bp)), PACK(size, 0));
+        bp = PREV_BLOCK(bp);
+    }
+
+    return bp;
+}
+
+static void* extend_heap(int words) {
+    int extend_size = ALIGN(words * WORD_SIZE);
+    char *bp;
+    if ((void*) (bp = mem_sbrk(extend_size)) == (void *) (-1)) {
+        return NULL;
+    }
+    SET(HEAD(bp), PACK(extend_size, 0));
+    SET(FOOT(bp), PACK(extend_size, 0));
+
+    set(HEAD(NEXT_BLOCK(bp)), PACK(0, 1));
+
+    return coalesce(bp);
 }
 
 /* 
  * mm_malloc - Allocate a block by incrementing the brk pointer.
  *     Always allocate a block whose size is a multiple of the alignment.
  */
+
+void *find_fit(int size) {
+    for (char *bp = heap_base; GET_SIZE(HEAD(bp)) > 0; bp = NEXT_BLOCK(bp)) {
+        if (GET_SIZE(HEAD(bp)) >= size && GET_ALLOC_STATE(HEAD(bp)) == 0)
+            return bp;
+    }
+    return NULL;
+}
+
+void *cut(char* bp, int size) {
+    int c_size = GET_SIZE(HEAD(bp));
+    if (c_size - size >= 2 * WORD_SIZE) {
+        SET(HEAD(bp), PACK(size, 1));
+        SET(FOOT(bp), PACK(size, 1));
+        bp = NEXT_BLOCK(bp);
+        SET(HEAD(bp), PACK(c_size - size, 0));
+        SET(FOOT(bp), PACK(c_size - size, 0));
+    } else {
+        SET(HEAD(bp), PACK(c_size, 1));
+        SET(FOOT(bp), PACK(c_size, 1));
+    }
+}
+
 void *mm_malloc(size_t size)
 {
-    int newsize = ALIGN(size + SIZE_T_SIZE);
-    void *p = mem_sbrk(newsize);
-    if (p == (void *)-1)
-	return NULL;
-    else {
-        *(size_t *)p = size;
-        return (void *)((char *)p + SIZE_T_SIZE);
+    int new_size = ALIGN(size + DWORD_SIZE_SIZE);
+    if (new_size <= 0) {
+        return NULL;
     }
+
+    char *bp = (char *) find_fit(new_size);
+    if (NULL != bp) {
+        cut(bp, new_size);
+        return bp;
+    }
+
+    int extend_size = CHUNK_SIZE <= new_size ? new_size : CHUNK_SIZE;
+    if ((bp = extend_heap(extend_size / WORD_SIZE)) == NULL)
+        return NULL;
+
+    cut(bp, new_size);
+
+    return bp;
 }
 
 /*
@@ -74,6 +178,11 @@ void *mm_malloc(size_t size)
 void mm_free(void *ptr)
 {
    /*write something*/ 
+   int size = GET_SIZE(HEAD(ptr));
+   SET(HEAD(ptr), PACK(size, 0));
+   SET(FOOT(ptr), PACK(size, 0));
+
+   return coalesce(ptr);
 }
 
 /*
