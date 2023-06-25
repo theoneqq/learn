@@ -138,7 +138,7 @@ void *find_fit(int size) {
     return NULL;
 }
 
-void *cut(char* bp, int size) {
+void cut(char* bp, int size) {
     int c_size = GET_SIZE(HEAD(bp));
     if (c_size - size >= 2 * WORD_SIZE) {
         SET(HEAD(bp), PACK(size, 1));

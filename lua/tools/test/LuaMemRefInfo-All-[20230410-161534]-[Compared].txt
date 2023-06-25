@@ -1,0 +1,8 @@
+--------------------------------------------------------
+-- This is compared memory information.
+--------------------------------------------------------
+-- Collect base memory reference at line:-1@file:before.txt
+-- Collect compared memory reference at line:-1@file:after.txt
+--------------------------------------------------------
+-- [Table/Function/String Address/Name]	[Reference Path]	[Reference Count]
+--------------------------------------------------------
