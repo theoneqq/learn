@@ -42,7 +42,9 @@ int main() {
 	pid_t pid = fork();
 
 	if (pid == 0) {
-		__read_file(fd, buf, (size_t) size);
+		int child_fd = __open_file("f.txt", O_RDWR, 0);
+		printf("child pid: %d\n", pid);
+		__read_file(child_fd, buf, (size_t) size);
 		printf("child has read data: %s\n", (char*) buf);
 		//__write_file(fd, "400", (size_t) size);
 
@@ -53,6 +55,8 @@ int main() {
 		exit(0);
 	}
 
+	sleep(5);
+	printf("parent pid: %d\n", pid);
 	__read_file(fd, buf, (size_t) size);
 	printf("parent has read data: %s\n", (char*) buf);
 	//__write_file(fd, write_buf, (size_t) size);

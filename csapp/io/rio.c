@@ -70,6 +70,26 @@ ssize_t rio_readn(rio_t *rio, void *buf, size_t n) {
 }
 
 ssize_t rio_readline(rio_t *rio, void *buf, size_t n) {
+	int cnt, read_cnt;
+	char c;
+	char *bufp = buf;
+	for (cnt = 1; cnt <= n; ++cnt) {
+		if(read_cnt = __rio_read(rio, &c, 1) == 1) {
+			//*bufp++ = c;
+			if (c == '\n') {
+				cnt++;
+				break;
+			} else {
+				*bufp++ = c;
+
+			}
+		} else if (read_cnt == 0) {
+			if (cnt == 1) return 0;
+			else break;
+		} else return -1;
+	}	
+	*bufp = 0;
+	return cnt - 1;
 }
 
 
@@ -79,7 +99,11 @@ int main() {
 
 	char buf[10];
 	rio_init(&rio, fd);
-	rio_readn(&rio, buf, 10);
+	//rio_readn(&rio, buf, 10);
+	rio_readline(&rio, buf, 10);
+	printf("read content line1: %s\n", buf);
 
-	printf("read content: %s", buf);
+	memset(buf, 0, 10);
+	rio_readline(&rio, buf, 10);
+	printf("read content line2: %s\n", buf);
 }
