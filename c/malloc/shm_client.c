@@ -9,13 +9,9 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
+#include "sem.h"
 
-void on_error(const char *msg) {
-	perror(msg);
-	exit(1);
-}
-
-#define PATH_NAME "/Users/liuyang/Documents/learn/c/malloc"
+#define PATH_NAME "/Users/liuyang/Documents/learn/c"
 int main() {
 	int proj_id = 1024;
 	key_t shm_key;
@@ -38,12 +34,19 @@ int main() {
 		on_error("shmat failed");
 	}
 
+	int sem_id = sem_init();
+	if (sem_id < 0) {
+		on_error("sem init failed");
+	}
+	
 	while(1) {
+		sem_wait(sem_id);
 		*shmp = 999;
 		if (*shmp != 999) {
 			printf("shmp now value: %d\n", *shmp);
 			break;
 		}
+		sem_post(sem_id);
 	}
 
 	//解除映射，不删除共享内存
@@ -54,6 +57,10 @@ int main() {
 	/*if (shmctl(shm_id, IPC_RMID, NULL) < 0) {
 		on_error("shmctl failed");
 	}*/
+
+	if (sem_release(sem_id) < 0) {
+		on_error("sem release failed");
+	}
 
 	return 0;
 }
