@@ -9,6 +9,7 @@
 int main() {
 	int socks[2];
 	//这用起来跟管道太像了，那么这个有什么不同之处呢
+	//管道是半双工，这个是全双工
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, socks) == -1) {
 		printf("socketpair call failed!\n");
 		return 0;
